@@ -843,3 +843,97 @@
       } else if (numpadMode === 'life-set') {
         if (numpadValue === '' || isNaN(amount)) return;
         state.life = amount;
+        saveState();
+        renderLife();
+        closeNumpad();
+      }
+    }
+
+    function buildNumpadKeys() {
+      const grid = document.getElementById('numpad-grid');
+      grid.innerHTML = '';
+      ['1','2','3','4','5','6','7','8','9','','0','⌫'].forEach(key => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'numpad-key';
+        if (key === '') {
+          btn.disabled = true;
+          btn.style.visibility = 'hidden';
+        } else if (key === '⌫') {
+          btn.textContent = '⌫';
+          btn.addEventListener('click', () => {
+            numpadValue = numpadValue.slice(0, -1);
+            updateNumpadDisplay();
+          });
+        } else {
+          btn.textContent = key;
+          btn.addEventListener('click', () => appendNumpadDigit(key));
+        }
+        grid.appendChild(btn);
+      });
+    }
+
+    document.getElementById('btn-start').addEventListener('click', () => {
+      const checked = [...document.querySelectorAll('#setup-grid input:checked')].map(i => i.value);
+      state.selectedColors = checked;
+      state.enabledTypes = [...checked, COLORLESS_ID];
+      saveState();
+      renderTracker();
+      showScreen('tracker');
+    });
+
+    document.getElementById('btn-settings').addEventListener('click', () => {
+      renderSetup();
+      showScreen('setup');
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', resetAll);
+    document.getElementById('btn-upkeep').addEventListener('click', doUpkeep);
+
+    document.getElementById('mana-groups').addEventListener('click', e => {
+      const spendCard = e.target.closest('[data-spend-id]');
+      if (spendCard) {
+        spendMana(spendCard.dataset.spendId, 1);
+        return;
+      }
+
+      const restoreCard = e.target.closest('[data-restore-id]');
+      if (restoreCard) {
+        restoreMana(restoreCard.dataset.restoreId, 1);
+        return;
+      }
+
+      const numpadBtn = e.target.closest('[data-numpad-id]');
+      if (numpadBtn) {
+        openNumpad('mana', numpadBtn.dataset.numpadId);
+        return;
+      }
+
+      const countBtn = e.target.closest('[data-action]');
+      if (countBtn) {
+        adjustCount(countBtn.dataset.id, countBtn.dataset.action === 'plus' ? 1 : -1);
+      }
+    });
+
+    document.getElementById('life-display').addEventListener('click', () => openNumpad('life-set'));
+    document.getElementById('life-plus').addEventListener('click', () => adjustLife(1));
+    document.getElementById('life-minus').addEventListener('click', () => adjustLife(-1));
+
+    document.getElementById('numpad-clear').addEventListener('click', () => {
+      numpadValue = '';
+      updateNumpadDisplay();
+    });
+
+    document.getElementById('numpad-cancel').addEventListener('click', closeNumpad);
+    document.getElementById('numpad-submit').addEventListener('click', confirmNumpad);
+
+    document.getElementById('numpad-overlay').addEventListener('click', e => {
+      if (e.target.id === 'numpad-overlay') closeNumpad();
+    });
+
+    buildNumpadKeys();
+    renderSetup();
+    showScreen('setup');
+  </script>
+</body>
+</html>
