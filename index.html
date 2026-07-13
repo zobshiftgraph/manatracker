@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#121218">
+  <title>Mana Tracker</title>
+  <style>
+    :root {
+      --bg: #121218;
+      --surface: #1c1c28;
+      --surface2: #262636;
+      --border: #3a3a50;
+      --text: #f0f0f5;
+      --muted: #9898aa;
+      --accent: #7c6cf0;
+      --accent-hover: #6a5ad8;
+      --danger: #e05252;
+      --spent: #f59e0b;
+      --upkeep: #22a06b;
+      --upkeep-hover: #1a8558;
+      --white-mana: #f8f6d8;
+      --blue-mana: #0e68ab;
+      --black-mana: #3d2314;
+      --red-mana: #d3202a;
+      --green-mana: #00733e;
+      --colorless-mana: #cac5c0;
+      --radius: 14px;
+      --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+      --touch: 48px;
+      --bottom-bar: 76px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { touch-action: manipulation; }
+
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+      min-height: 100dvh;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 1.25rem;
+      padding-top: max(1rem, env(safe-area-inset-top));
+      flex-shrink: 0;
+    }
+
+    header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+    header p { color: var(--muted); font-size: 0.9rem; margin-top: 0.2rem; }
+
+    main { flex: 1; padding: 1rem 1rem 1.25rem; }
+    main.has-bottom-bar {
+      padding-bottom: calc(var(--bottom-bar) + max(1rem, env(safe-area-inset-bottom)));
+    }
+
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .card h2 { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .card p.hint { color: var(--muted); font-size: 0.9rem; margin-bottom: 1rem; }
+
+    .colorless-note {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.85rem 1rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .colorless-note strong { color: var(--text); }
+
+    .mana-pick-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.65rem;
+    }
+
+    @media (min-width: 360px) {
+      .mana-pick-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .mana-pick {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      min-height: var(--touch);
+      padding: 0.75rem 1rem;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      user-select: none;
+      transition: border-color 0.15s, background 0.15s;
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .mana-pick:has(input:checked) {
+      border-color: var(--accent);
+      background: rgba(124, 108, 240, 0.14);
+    }
+
+    .mana-pick input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+    }
+
+    .mana-symbol {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.05rem;
+      flex-shrink: 0;
+      border: 2px solid rgba(0, 0, 0, 0.25);
+      box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .mana-symbol.sm { width: 28px; height: 28px; font-size: 0.8rem; }
+    .mana-symbol.on-card { width: 32px; height: 32px; font-size: 0.95rem; }
+
+    .mana-symbol.white { background: var(--white-mana); color: #333; }
+    .mana-symbol.blue { background: var(--blue-mana); color: #fff; }
+    .mana-symbol.black { background: var(--black-mana); color: #fff; }
+    .mana-symbol.red { background: var(--red-mana); color: #fff; }
+    .mana-symbol.green { background: var(--green-mana); color: #fff; }
+    .mana-symbol.colorless {
+      background: var(--colorless-mana);
+      color: #333;
+      border-radius: 8px;
+      transform: rotate(45deg);
+      font-size: 0.85rem;
+    }
+
+    .mana-symbol.colorless span { transform: rotate(-45deg); }
+
+    .btn-row { display: flex; gap: 0.75rem; margin-top: 1.25rem; }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: 12px;
+      padding: 0.85rem 1.25rem;
+      font-weight: 600;
+      font-size: 1rem;
+      transition: background 0.15s, transform 0.1s;
+      touch-action: manipulation;
+    }
+
+    button:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      flex: 1;
+      min-height: var(--touch);
+    }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      min-height: 44px;
+    }
+
+    .btn-danger {
+      background: rgba(224, 82, 82, 0.15);
+      color: var(--danger);
+      border: 1px solid rgba(224, 82, 82, 0.35);
+      min-height: 44px;
+    }
+
+    .btn-upkeep {
+      background: var(--upkeep);
+      color: #fff;
+      width: 100%;
+      min-height: var(--touch);
+      font-size: 1.05rem;
+    }
+
+    .stats-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .stat-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem;
+      text-align: center;
+    }
+
+    .stat-box .label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.2rem;
+    }
+
+    .stat-box .value {
+      font-size: 1.85rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-box.total .value { color: var(--text); }
+    .stat-box.spent .value { color: var(--spent); }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .toolbar button { font-size: 0.9rem; padding: 0.7rem 0.5rem; }
+
+    .mana-groups {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .mana-group {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .group-header {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.75rem 0.85rem;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .group-header .name {
+      flex: 1;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .group-header .group-counts {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-right: 0.25rem;
+    }
+
+    .group-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+    }
+
+    .count-btn {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 1.35rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-spend-group {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border-radius: 10px;
+      background: rgba(224, 82, 82, 0.15);
+      border: 1px solid rgba(224, 82, 82, 0.35);
+      color: var(--danger);
+      font-size: 0.7rem;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .mana-cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 0.85rem;
+      min-height: 72px;
+      align-content: flex-start;
+    }
+
+    .mana-cards.empty {
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .mana-card {
+      width: 46px;
+      height: 64px;
+      border-radius: 7px;
+      border: 2px solid rgba(255, 255, 255, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      flex-shrink: 0;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      transition: transform 0.25s ease, opacity 0.25s ease, filter 0.25s ease;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .mana-card::before {
+      content: '';
+      position: absolute;
+      inset: 4px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      pointer-events: none;
+    }
+
+    .mana-card.white {
+      background: linear-gradient(145deg, #fffef5 0%, #e8e4c8 100%);
+      border-color: #c4bc8a;
+    }
+
+    .mana-card.blue {
+      background: linear-gradient(145deg, #1a7fc4 0%, #0a5088 100%);
+      border-color: #084472;
+    }
+
+    .mana-card.black {
+      background: linear-gradient(145deg, #4a3020 0%, #1a0e08 100%);
+      border-color: #0d0704;
+    }
+
+    .mana-card.red {
+      background: linear-gradient(145deg, #e83840 0%, #a01820 100%);
+      border-color: #801018;
+    }
+
+    .mana-card.green {
+      background: linear-gradient(145deg, #109050 0%, #005028 100%);
+      border-color: #003818;
+    }
+
+    .mana-card.colorless {
+      background: linear-gradient(145deg, #ddd8d3 0%, #a8a39e 100%);
+      border-color: #888480;
+    }
+
+    .mana-card.available:active { transform: scale(0.94); }
+
+    .mana-card.tapped {
+      transform: rotate(90deg);
+      opacity: 0.42;
+      filter: grayscale(0.35) brightness(0.75);
+      cursor: default;
+    }
+
+    .bottom-bar {
+      display: none;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 0.65rem 1rem;
+      padding-bottom: max(0.65rem, env(safe-area-inset-bottom));
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      z-index: 50;
+    }
+
+    .bottom-bar.visible { display: block; }
+    .bottom-bar-inner { max-width: 480px; margin: 0 auto; }
+
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 100;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 0.75rem;
+      padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    }
+
+    .overlay.open { display: flex; }
+
+    .numpad-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px 18px 14px 14px;
+      width: 100%;
+      max-width: 480px;
+      padding: 1.25rem;
+      box-shadow: var(--shadow);
+      animation: slideUp 0.2s ease-out;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(24px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .numpad-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .numpad-header h3 { font-size: 1.15rem; font-weight: 600; }
+
+    .numpad-display {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      font-size: 2.25rem;
+      font-weight: 700;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      min-height: 3.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .numpad-display.empty { color: var(--muted); }
+
+    .numpad-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .numpad-key {
+      height: 56px;
+      font-size: 1.35rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .numpad-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+
+    .numpad-actions .btn-spend {
+      grid-column: 1 / -1;
+      background: var(--danger);
+      color: #fff;
+      padding: 0.95rem;
+      min-height: var(--touch);
+      font-size: 1.05rem;
+    }
+
+    .numpad-actions .btn-spend:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Mana Tracker</h1>
+      <p id="header-subtitle">Select your colors</p>
+    </header>
+
+    <main id="main">
+      <section id="screen-setup" class="screen active">
+        <div class="card">
+          <h2>Mana colors</h2>
+          <p class="hint">Tap the colors in your deck, then submit.</p>
+          <div class="colorless-note">
+            <span class="mana-symbol colorless sm"><span>C</span></span>
+            <span><strong>Colorless</strong> is always included.</span>
+          </div>
+          <div class="mana-pick-grid" id="setup-grid"></div>
+          <div class="btn-row">
+            <button type="button" class="btn-primary" id="btn-start">Submit</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-tracker" class="screen">
+        <div class="stats-bar">
+          <div class="stat-box total">
+            <span class="label">Total mana</span>
+            <span class="value" id="stat-total">0</span>
+          </div>
+          <div class="stat-box spent">
+            <span class="label">Spent</span>
+            <span class="value" id="stat-spent">0</span>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button type="button" class="btn-secondary" id="btn-settings">Change colors</button>
+          <button type="button" class="btn-danger" id="btn-reset">Clear all</button>
+        </div>
+
+        <div class="mana-groups" id="mana-groups"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="bottom-bar" id="bottom-bar">
+    <div class="bottom-bar-inner">
+      <button type="button" class="btn-upkeep" id="btn-upkeep">Upkeep — restore spent mana</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="numpad-overlay" aria-hidden="true">
+    <div class="numpad-panel" role="dialog" aria-labelledby="numpad-title">
+      <div class="numpad-header">
+        <div class="mana-symbol" id="numpad-symbol"></div>
+        <h3 id="numpad-title">Spend mana</h3>
+      </div>
+      <p class="hint" style="margin-bottom: 0.75rem; color: var(--muted); font-size: 0.9rem;">
+        Enter amount to spend from <strong id="numpad-color-name"></strong>.
+        Available: <strong id="numpad-available"></strong>
+      </p>
+      <div class="numpad-display empty" id="numpad-display">0</div>
+      <div class="numpad-grid" id="numpad-grid"></div>
+      <div class="numpad-actions">
+        <button type="button" class="btn-secondary" id="numpad-clear">Clear</button>
+        <button type="button" class="btn-secondary" id="numpad-cancel">Cancel</button>
+        <button type="button" class="btn-spend" id="numpad-spend" disabled>Spend</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const COLORLESS_ID = 'colorless';
+    const SELECTABLE_MANA = [
+      { id: 'white', name: 'White', letter: 'W', className: 'white' },
+      { id: 'blue', name: 'Blue', letter: 'U', className: 'blue' },
+      { id: 'black', name: 'Black', letter: 'B', className: 'black' },
+      { id: 'red', name: 'Red', letter: 'R', className: 'red' },
+      { id: 'green', name: 'Green', letter: 'G', className: 'green' },
+    ];
+    const COLORLESS_MANA = { id: 'colorless', name: 'Colorless', letter: 'C', className: 'colorless' };
+    const ALL_MANA = [...SELECTABLE_MANA, COLORLESS_MANA];
+
+    const STORAGE_KEY = 'mana-tracker-state-v2';
+
+    let state = loadState();
+
+    function emptyCounts() {
+      return Object.fromEntries(ALL_MANA.map(m => [m.id, 0]));
+    }
+
+    function defaultState() {
+      return {
+        selectedColors: [],
+        enabledTypes: [COLORLESS_ID],
+        counts: emptyCounts(),
+        poolBaseline: emptyCounts(),
+      };
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return defaultState();
+        const parsed = JSON.parse(raw);
+        const counts = { ...emptyCounts(), ...parsed.counts };
+        const poolBaseline = { ...emptyCounts(), ...parsed.poolBaseline };
+        const selectedColors = Array.isArray(parsed.selectedColors)
+          ? parsed.selectedColors.filter(id => id !== COLORLESS_ID)
+          : [];
+        const enabledTypes = [...selectedColors, COLORLESS_ID];
+        return { selectedColors, enabledTypes, counts, poolBaseline };
+      } catch {
+        return defaultState();
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function getMana(id) {
+      return ALL_MANA.find(m => m.id === id);
+    }
+
+    function symbolHtml(mana, sizeClass) {
+      const cls = sizeClass ? ' ' + sizeClass : '';
+      if (mana.id === COLORLESS_ID) {
+        return `<span class="mana-symbol ${mana.className}${cls}"><span>${mana.letter}</span></span>`;
+      }
+      return `<span class="mana-symbol ${mana.className}${cls}">${mana.letter}</span>`;
+    }
+
+    function renderSymbol(mana, el) {
+      el.className = 'mana-symbol ' + mana.className;
+      if (mana.id === COLORLESS_ID) {
+        el.innerHTML = '<span>' + mana.letter + '</span>';
+      } else {
+        el.textContent = mana.letter;
+      }
+    }
+
+    function totalPool() {
+      return state.enabledTypes.reduce((sum, id) => sum + (state.poolBaseline[id] || 0), 0);
+    }
+
+    function totalSpent() {
+      return state.enabledTypes.reduce((sum, id) => {
+        const baseline = state.poolBaseline[id] || 0;
+        const current = state.counts[id] || 0;
+        return sum + (baseline - current);
+      }, 0);
+    }
+
+    function spentFor(id) {
+      return (state.poolBaseline[id] || 0) - (state.counts[id] || 0);
+    }
+
+    function showScreen(name) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-' + name).classList.add('active');
+      document.getElementById('header-subtitle').textContent =
+        name === 'setup' ? 'Select your colors' : 'Tap a card to spend 1 mana';
+      const onTracker = name === 'tracker';
+      document.getElementById('bottom-bar').classList.toggle('visible', onTracker);
+      document.getElementById('main').classList.toggle('has-bottom-bar', onTracker);
+    }
+
+    function renderSetup() {
+      const grid = document.getElementById('setup-grid');
+      grid.innerHTML = '';
+      SELECTABLE_MANA.forEach(mana => {
+        const checked = state.selectedColors.includes(mana.id);
+        const label = document.createElement('label');
+        label.className = 'mana-pick';
+        label.innerHTML = `
+          <input type="checkbox" value="${mana.id}" ${checked ? 'checked' : ''}>
+          ${symbolHtml(mana)}
+          <span>${mana.name}</span>
+        `;
+        grid.appendChild(label);
+      });
+    }
+
+    function renderManaCards(id, mana) {
+      const baseline = state.poolBaseline[id] || 0;
+      const available = state.counts[id] || 0;
+      const spent = baseline - available;
+
+      if (baseline === 0) {
+        return '<div class="mana-cards empty">Tap + to add mana</div>';
+      }
+
+      let html = '<div class="mana-cards">';
+      for (let i = 0; i < available; i++) {
+        html += `<button type="button" class="mana-card ${mana.className} available" data-spend-id="${id}" aria-label="Spend 1 ${mana.name}">${symbolHtml(mana, 'on-card')}</button>`;
+      }
+      for (let i = 0; i < spent; i++) {
+        html += `<div class="mana-card ${mana.className} tapped" aria-hidden="true">${symbolHtml(mana, 'on-card')}</div>`;
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function renderTracker() {
+      document.getElementById('stat-total').textContent = totalPool();
+      document.getElementById('stat-spent').textContent = totalSpent();
+
+      const container = document.getElementById('mana-groups');
+      container.innerHTML = '';
+
+      state.enabledTypes.forEach(id => {
+        const mana = getMana(id);
+        const available = state.counts[id] || 0;
+        const spent = spentFor(id);
+        const group = document.createElement('div');
+        group.className = 'mana-group';
+        group.dataset.manaId = id;
+        group.innerHTML = `
+          <div class="group-header">
+            ${symbolHtml(mana, 'sm')}
+            <span class="name">${mana.name}</span>
+            <span class="group-counts">${available} avail · ${spent} spent</span>
+            <div class="group-controls">
+              <button type="button" class="count-btn" data-action="minus" data-id="${id}" aria-label="Remove one ${mana.name}">−</button>
+              <button type="button" class="count-btn" data-action="plus" data-id="${id}" aria-label="Add one ${mana.name}">+</button>
+              <button type="button" class="btn-spend-group" data-numpad-id="${id}" aria-label="Spend multiple ${mana.name}">#</button>
+            </div>
+          </div>
+          ${renderManaCards(id, mana)}
+        `;
+        container.appendChild(group);
+      });
+    }
+
+    function spendMana(id, amount) {
+      const available = state.counts[id] || 0;
+      if (amount <= 0 || amount > available) {
+        alert('Not enough ' + getMana(id).name + ' mana. You have ' + available + '.');
+        return false;
+      }
+      state.counts[id] = available - amount;
+      saveState();
+      renderTracker();
+      return true;
+    }
+
+    function adjustCount(id, delta) {
+      const next = Math.max(0, (state.counts[id] || 0) + delta);
+      const nextBaseline = Math.max(0, (state.poolBaseline[id] || 0) + delta);
+      state.counts[id] = next;
+      state.poolBaseline[id] = nextBaseline;
+      saveState();
+      renderTracker();
+    }
+
+    function doUpkeep() {
+      state.enabledTypes.forEach(id => {
+        state.counts[id] = state.poolBaseline[id] || 0;
+      });
+      saveState();
+      renderTracker();
+    }
+
+    function resetAll() {
+      if (!confirm('Clear all mana to zero?')) return;
+      ALL_MANA.forEach(m => {
+        state.counts[m.id] = 0;
+        state.poolBaseline[m.id] = 0;
+      });
+      saveState();
+      renderTracker();
+    }
+
+    let numpadManaId = null;
+    let numpadValue = '';
+
+    function openNumpad(id) {
+      const mana = getMana(id);
+      numpadManaId = id;
+      numpadValue = '';
+      renderSymbol(mana, document.getElementById('numpad-symbol'));
+      document.getElementById('numpad-title').textContent = 'Spend ' + mana.name;
+      document.getElementById('numpad-color-name').textContent = mana.name;
+      document.getElementById('numpad-available').textContent = state.counts[id] || 0;
+      updateNumpadDisplay();
+      document.getElementById('numpad-overlay').classList.add('open');
+      document.getElementById('numpad-overlay').setAttribute('aria-hidden', 'false');
+    }
+
+    function closeNumpad() {
+      document.getElementById('numpad-overlay').classList.remove('open');
+      document.getElementById('numpad-overlay').setAttribute('aria-hidden', 'true');
+      numpadManaId = null;
+      numpadValue = '';
+    }
+
+    function updateNumpadDisplay() {
+      const el = document.getElementById('numpad-display');
+      const num = numpadValue === '' ? 0 : parseInt(numpadValue, 10);
+      el.textContent = numpadValue === '' ? '0' : numpadValue;
+      el.classList.toggle('empty', numpadValue === '');
+      document.getElementById('numpad-spend').disabled = !numpadValue || num <= 0;
+    }
+
+    function appendNumpadDigit(d) {
+      if (numpadValue.length >= 3) return;
+      if (numpadValue === '0') numpadValue = d;
+      else numpadValue += d;
+      updateNumpadDisplay();
+    }
+
+    function confirmSpend() {
+      const amount = parseInt(numpadValue, 10);
+      if (!numpadManaId || !amount || amount <= 0) return;
+      if (spendMana(numpadManaId, amount)) closeNumpad();
+    }
+
+    function buildNumpadKeys() {
+      const grid = document.getElementById('numpad-grid');
+      grid.innerHTML = '';
+      ['1','2','3','4','5','6','7','8','9','','0','⌫'].forEach(key => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'numpad-key';
+        if (key === '') {
+          btn.disabled = true;
+          btn.style.visibility = 'hidden';
+        } else if (key === '⌫') {
+          btn.textContent = '⌫';
+          btn.addEventListener('click', () => {
+            numpadValue = numpadValue.slice(0, -1);
+            updateNumpadDisplay();
+          });
+        } else {
+          btn.textContent = key;
+          btn.addEventListener('click', () => appendNumpadDigit(key));
+        }
+        grid.appendChild(btn);
+      });
+    }
+
+    document.getElementById('btn-start').addEventListener('click', () => {
+      const checked = [...document.querySelectorAll('#setup-grid input:checked')].map(i => i.value);
+      state.selectedColors = checked;
+      state.enabledTypes = [...checked, COLORLESS_ID];
+      saveState();
+      renderTracker();
+      showScreen('tracker');
+    });
+
+    document.getElementById('btn-settings').addEventListener('click', () => {
+      renderSetup();
+      showScreen('setup');
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', resetAll);
+    document.getElementById('btn-upkeep').addEventListener('click', doUpkeep);
+
+    document.getElementById('mana-groups').addEventListener('click', e => {
+      const spendCard = e.target.closest('[data-spend-id]');
+      if (spendCard) {
+        spendMana(spendCard.dataset.spendId, 1);
+        return;
+      }
+
+      const numpadBtn = e.target.closest('[data-numpad-id]');
+      if (numpadBtn) {
+        openNumpad(numpadBtn.dataset.numpadId);
+        return;
+      }
+
+      const countBtn = e.target.closest('[data-action]');
+      if (countBtn) {
+        adjustCount(countBtn.dataset.id, countBtn.dataset.action === 'plus' ? 1 : -1);
+      }
+    });
+
+    document.getElementById('numpad-clear').addEventListener('click', () => {
+      numpadValue = '';
+      updateNumpadDisplay();
+    });
+
+    document.getElementById('numpad-cancel').addEventListener('click', closeNumpad);
+    document.getElementById('numpad-spend').addEventListener('click', confirmSpend);
+
+    document.getElementById('numpad-overlay').addEventListener('click', e => {
+      if (e.target.id === 'numpad-overlay') closeNumpad();
+    });
+
+    buildNumpadKeys();
+    renderSetup();
+    showScreen('setup');
+  </script>
+</body>
+</html>
