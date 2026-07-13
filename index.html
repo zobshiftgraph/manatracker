@@ -30,7 +30,7 @@
       --radius: 14px;
       --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
       --touch: 48px;
-      --bottom-bar: 188px;
+      --bottom-bar: 72px;
       --life: #e05252;
     }
 
@@ -152,7 +152,45 @@
     .mana-icon.green { fill: #3cb371; }
     .mana-icon.colorless { fill: #d8d3ce; }
 
+    .any-badge {
+      display: block;
+      border-radius: 50%;
+      background: conic-gradient(#fdfbce, #5eb3ff, #b8927a, #f05555, #3cb371, #fdfbce);
+      box-shadow: inset 0 0 0 3px var(--surface2), 0 1px 2px rgba(0, 0, 0, 0.45);
+      flex-shrink: 0;
+    }
+
+    .any-badge.sm { width: 26px; height: 26px; }
+    .any-badge.on-card { width: 44px; height: 44px; }
+    .any-badge.lg { width: 40px; height: 40px; }
+
     .btn-row { display: flex; gap: 0.75rem; margin-top: 1.25rem; }
+
+    .color-pick-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.65rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .color-pick-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.75rem 0.5rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      min-height: 72px;
+    }
+
+    .color-pick-btn span {
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .color-pick-btn:active { transform: scale(0.96); }
 
     button {
       font: inherit;
@@ -192,10 +230,8 @@
     .btn-upkeep {
       background: var(--upkeep);
       color: #fff;
-      width: 100%;
       min-height: 44px;
       font-size: 0.95rem;
-      margin-bottom: 0.5rem;
     }
 
     .bottom-actions {
@@ -205,9 +241,18 @@
     }
 
     .bottom-actions button {
-      font-size: 0.85rem;
+      font-size: 0.9rem;
       padding: 0.65rem 0.5rem;
       min-height: 44px;
+    }
+
+    .setup-actions {
+      margin-top: 0.75rem;
+    }
+
+    .setup-actions .btn-danger {
+      width: 100%;
+      min-height: var(--touch);
     }
 
     .wake-row {
@@ -449,6 +494,12 @@
       transform: rotate(45deg);
     }
 
+    .mana-card.tapped .any-badge {
+      transform: rotate(90deg);
+      opacity: 0.4;
+      filter: grayscale(0.4) brightness(0.7);
+    }
+
     .bottom-bar {
       display: none;
       position: fixed;
@@ -577,7 +628,7 @@
           <p class="hint">Tap the colors in your deck, then submit.</p>
           <div class="colorless-note">
             <svg class="mana-icon sm colorless" viewBox="0 0 32 32" aria-hidden="true"><use href="#mana-c"/></svg>
-            <span><strong>Colorless</strong> is always included.</span>
+            <span><strong>Colorless</strong> and <strong>Any color</strong> are always included. Spending any mana asks which color you use.</span>
           </div>
           <div class="mana-pick-grid" id="setup-grid"></div>
           <label class="wake-row setup">
@@ -585,6 +636,9 @@
             <input type="checkbox" data-wake-toggle>
             <span class="wake-switch" aria-hidden="true"></span>
           </label>
+          <div class="btn-row setup-actions">
+            <button type="button" class="btn-danger" id="btn-reset">Clear all</button>
+          </div>
           <div class="btn-row">
             <button type="button" class="btn-primary" id="btn-start">Submit</button>
           </div>
@@ -608,15 +662,9 @@
 
   <div class="bottom-bar" id="bottom-bar">
     <div class="bottom-bar-inner">
-      <label class="wake-row">
-        <span>Keep screen on</span>
-        <input type="checkbox" data-wake-toggle>
-        <span class="wake-switch" aria-hidden="true"></span>
-      </label>
-      <button type="button" class="btn-upkeep" id="btn-upkeep">Upkeep — restore spent mana</button>
       <div class="bottom-actions">
-        <button type="button" class="btn-secondary" id="btn-settings">Change colors</button>
-        <button type="button" class="btn-danger" id="btn-reset">Clear all</button>
+        <button type="button" class="btn-upkeep" id="btn-upkeep">Upkeep</button>
+        <button type="button" class="btn-secondary" id="btn-back">Back</button>
       </div>
     </div>
   </div>
@@ -638,8 +686,18 @@
     </div>
   </div>
 
+  <div class="overlay" id="color-picker-overlay" aria-hidden="true">
+    <div class="numpad-panel" role="dialog" aria-labelledby="color-picker-title">
+      <h3 id="color-picker-title" style="font-size: 1.15rem; font-weight: 600; margin-bottom: 0.5rem;">Choose color</h3>
+      <p class="hint" id="color-picker-hint" style="margin-bottom: 1rem; color: var(--muted); font-size: 0.9rem;"></p>
+      <div class="color-pick-grid" id="color-pick-grid"></div>
+      <button type="button" class="btn-secondary" id="color-picker-cancel" style="width: 100%; min-height: 44px;">Cancel</button>
+    </div>
+  </div>
+
   <script>
     const COLORLESS_ID = 'colorless';
+    const ANY_ID = 'any';
     const SELECTABLE_MANA = [
       { id: 'white', name: 'White', icon: 'w', className: 'white' },
       { id: 'blue', name: 'Blue', icon: 'u', className: 'blue' },
@@ -648,7 +706,8 @@
       { id: 'green', name: 'Green', icon: 'g', className: 'green' },
     ];
     const COLORLESS_MANA = { id: 'colorless', name: 'Colorless', icon: 'c', className: 'colorless' };
-    const ALL_MANA = [...SELECTABLE_MANA, COLORLESS_MANA];
+    const ANY_MANA = { id: 'any', name: 'Any color', icon: 'any', className: 'any' };
+    const ALL_MANA = [...SELECTABLE_MANA, COLORLESS_MANA, ANY_MANA];
 
     const STORAGE_KEY = 'mana-tracker-state-v3';
 
@@ -661,9 +720,10 @@
     function defaultState() {
       return {
         selectedColors: [],
-        enabledTypes: [COLORLESS_ID],
+        enabledTypes: [COLORLESS_ID, ANY_ID],
         counts: emptyCounts(),
         poolBaseline: emptyCounts(),
+        anySpentColors: [],
         life: 40,
         keepAwake: false,
       };
@@ -677,12 +737,15 @@
         const counts = { ...emptyCounts(), ...parsed.counts };
         const poolBaseline = { ...emptyCounts(), ...parsed.poolBaseline };
         const selectedColors = Array.isArray(parsed.selectedColors)
-          ? parsed.selectedColors.filter(id => id !== COLORLESS_ID)
+          ? parsed.selectedColors.filter(id => id !== COLORLESS_ID && id !== ANY_ID)
           : [];
-        const enabledTypes = [...selectedColors, COLORLESS_ID];
+        const enabledTypes = [...selectedColors, COLORLESS_ID, ANY_ID];
         const life = typeof parsed.life === 'number' ? parsed.life : 40;
         const keepAwake = !!parsed.keepAwake;
-        return { selectedColors, enabledTypes, counts, poolBaseline, life, keepAwake };
+        const anySpentColors = Array.isArray(parsed.anySpentColors) ? parsed.anySpentColors : [];
+        const result = { selectedColors, enabledTypes, counts, poolBaseline, anySpentColors, life, keepAwake };
+        syncAnySpentColors(result);
+        return result;
       } catch {
         return defaultState();
       }
@@ -696,9 +759,27 @@
       return ALL_MANA.find(m => m.id === id);
     }
 
+    function colorPickOptions(selectedColors) {
+      const colors = selectedColors || state.selectedColors;
+      const enabled = SELECTABLE_MANA.filter(m => colors.includes(m.id));
+      return enabled.length ? enabled : SELECTABLE_MANA;
+    }
+
+    function syncAnySpentColors(targetState) {
+      const s = targetState || state;
+      const spent = (s.poolBaseline[ANY_ID] || 0) - (s.counts[ANY_ID] || 0);
+      while (s.anySpentColors.length > spent) s.anySpentColors.pop();
+      const fallback = colorPickOptions(s.selectedColors)[0].id;
+      while (s.anySpentColors.length < spent) s.anySpentColors.push(fallback);
+    }
+
     function symbolHtml(mana, sizeClass) {
-      const cls = 'mana-icon' + (sizeClass ? ' ' + sizeClass : '') + ' ' + mana.className;
-      return `<svg class="${cls}" viewBox="0 0 32 32" aria-hidden="true"><use href="#mana-${mana.icon}"/></svg>`;
+      const cls = (sizeClass ? sizeClass + ' ' : '') + mana.className;
+      if (mana.id === ANY_ID) {
+        return `<span class="any-badge ${cls}" aria-hidden="true"></span>`;
+      }
+      const iconCls = 'mana-icon' + (sizeClass ? ' ' + sizeClass : '') + ' ' + mana.className;
+      return `<svg class="${iconCls}" viewBox="0 0 32 32" aria-hidden="true"><use href="#mana-${mana.icon}"/></svg>`;
     }
 
     function renderSymbol(mana, el) {
@@ -811,7 +892,11 @@
         html += `<button type="button" class="mana-card ${mana.className} available" data-spend-id="${id}" aria-label="Spend 1 ${mana.name}">${symbolHtml(mana, 'on-card')}</button>`;
       }
       for (let i = 0; i < spent; i++) {
-        html += `<button type="button" class="mana-card ${mana.className} tapped" data-restore-id="${id}" aria-label="Restore 1 ${mana.name}">${symbolHtml(mana, 'on-card')}</button>`;
+        const spentColorId = id === ANY_ID ? state.anySpentColors[i] : null;
+        const displayMana = spentColorId ? getMana(spentColorId) : mana;
+        const cardClass = spentColorId ? displayMana.className : mana.className;
+        const restoreIndex = id === ANY_ID ? ` data-restore-index="${i}"` : '';
+        html += `<button type="button" class="mana-card ${cardClass} tapped" data-restore-id="${id}"${restoreIndex} aria-label="Restore 1 ${mana.name}">${symbolHtml(displayMana, 'on-card')}</button>`;
       }
       html += '</div>';
       return html;
@@ -863,12 +948,64 @@
       return true;
     }
 
-    function restoreMana(id, amount) {
+    let pendingAnySpend = 0;
+
+    function requestSpendMana(id, amount) {
+      if (id === ANY_ID) {
+        pendingAnySpend = amount;
+        openColorPicker(amount);
+        return;
+      }
+      spendMana(id, amount);
+    }
+
+    function openColorPicker(amount) {
+      document.getElementById('color-picker-hint').textContent =
+        amount === 1 ? 'Which color are you spending?' : 'Spending ' + amount + ' — pick a color';
+      const grid = document.getElementById('color-pick-grid');
+      grid.innerHTML = '';
+      colorPickOptions().forEach(mana => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'color-pick-btn';
+        btn.dataset.colorId = mana.id;
+        btn.innerHTML = symbolHtml(mana, 'on-card') + '<span>' + mana.name + '</span>';
+        grid.appendChild(btn);
+      });
+      document.getElementById('color-picker-overlay').classList.add('open');
+      document.getElementById('color-picker-overlay').setAttribute('aria-hidden', 'false');
+    }
+
+    function closeColorPicker() {
+      document.getElementById('color-picker-overlay').classList.remove('open');
+      document.getElementById('color-picker-overlay').setAttribute('aria-hidden', 'true');
+      pendingAnySpend = 0;
+    }
+
+    function confirmColorPick(colorId) {
+      const amount = pendingAnySpend;
+      if (!amount || amount <= 0 || !colorId) return;
+      closeColorPicker();
+      const available = state.counts[ANY_ID] || 0;
+      if (amount > available) {
+        alert('Not enough Any color mana. You have ' + available + '.');
+        return;
+      }
+      state.counts[ANY_ID] = available - amount;
+      for (let i = 0; i < amount; i++) state.anySpentColors.push(colorId);
+      saveState();
+      renderTracker();
+    }
+
+    function restoreMana(id, amount, restoreIndex) {
       const baseline = state.poolBaseline[id] || 0;
       const current = state.counts[id] || 0;
       const room = baseline - current;
       if (room <= 0) return false;
       state.counts[id] = current + Math.min(amount, room);
+      if (id === ANY_ID && typeof restoreIndex === 'number') {
+        state.anySpentColors.splice(restoreIndex, 1);
+      }
       saveState();
       renderTracker();
       return true;
@@ -879,6 +1016,7 @@
       const nextBaseline = Math.max(0, (state.poolBaseline[id] || 0) + delta);
       state.counts[id] = next;
       state.poolBaseline[id] = nextBaseline;
+      if (id === ANY_ID) syncAnySpentColors();
       saveState();
       renderTracker();
     }
@@ -887,6 +1025,7 @@
       state.enabledTypes.forEach(id => {
         state.counts[id] = state.poolBaseline[id] || 0;
       });
+      state.anySpentColors = [];
       saveState();
       renderTracker();
     }
@@ -897,6 +1036,7 @@
         state.counts[m.id] = 0;
         state.poolBaseline[m.id] = 0;
       });
+      state.anySpentColors = [];
       saveState();
       renderTracker();
     }
@@ -914,12 +1054,14 @@
       const submitBtn = document.getElementById('numpad-submit');
       const hint = document.getElementById('numpad-hint');
 
-      header.classList.toggle('has-mana', mode === 'mana');
+      header.classList.toggle('has-mana', mode === 'mana' && manaId !== ANY_ID);
       submitBtn.className = 'btn-submit';
 
       if (mode === 'mana') {
         const mana = getMana(manaId);
-        renderSymbol(mana, document.getElementById('numpad-symbol'));
+        if (manaId !== ANY_ID) {
+          renderSymbol(mana, document.getElementById('numpad-symbol'));
+        }
         document.getElementById('numpad-title').textContent = 'Spend ' + mana.name;
         hint.innerHTML = 'Enter amount to spend. Available: <strong>' + (state.counts[manaId] || 0) + '</strong>';
         submitBtn.textContent = 'Spend';
@@ -971,6 +1113,12 @@
       const amount = parseInt(numpadValue, 10);
       if (numpadMode === 'mana') {
         if (!numpadManaId || !amount || amount <= 0) return;
+        if (numpadManaId === ANY_ID) {
+          pendingAnySpend = amount;
+          closeNumpad();
+          openColorPicker(amount);
+          return;
+        }
         if (spendMana(numpadManaId, amount)) closeNumpad();
       } else if (numpadMode === 'life-set') {
         if (numpadValue === '' || isNaN(amount)) return;
@@ -1008,13 +1156,13 @@
     document.getElementById('btn-start').addEventListener('click', () => {
       const checked = [...document.querySelectorAll('#setup-grid input:checked')].map(i => i.value);
       state.selectedColors = checked;
-      state.enabledTypes = [...checked, COLORLESS_ID];
+      state.enabledTypes = [...checked, COLORLESS_ID, ANY_ID];
       saveState();
       renderTracker();
       showScreen('tracker');
     });
 
-    document.getElementById('btn-settings').addEventListener('click', () => {
+    document.getElementById('btn-back').addEventListener('click', () => {
       renderSetup();
       showScreen('setup');
     });
@@ -1025,13 +1173,18 @@
     document.getElementById('mana-groups').addEventListener('click', e => {
       const spendCard = e.target.closest('[data-spend-id]');
       if (spendCard) {
-        spendMana(spendCard.dataset.spendId, 1);
+        requestSpendMana(spendCard.dataset.spendId, 1);
         return;
       }
 
       const restoreCard = e.target.closest('[data-restore-id]');
       if (restoreCard) {
-        restoreMana(restoreCard.dataset.restoreId, 1);
+        const index = restoreCard.dataset.restoreIndex;
+        restoreMana(
+          restoreCard.dataset.restoreId,
+          1,
+          index === undefined ? undefined : parseInt(index, 10)
+        );
         return;
       }
 
@@ -1050,6 +1203,17 @@
     document.getElementById('life-display').addEventListener('click', () => openNumpad('life-set'));
     document.getElementById('life-plus').addEventListener('click', () => adjustLife(1));
     document.getElementById('life-minus').addEventListener('click', () => adjustLife(-1));
+
+    document.getElementById('color-pick-grid').addEventListener('click', e => {
+      const btn = e.target.closest('[data-color-id]');
+      if (btn) confirmColorPick(btn.dataset.colorId);
+    });
+
+    document.getElementById('color-picker-cancel').addEventListener('click', closeColorPicker);
+
+    document.getElementById('color-picker-overlay').addEventListener('click', e => {
+      if (e.target.id === 'color-picker-overlay') closeColorPicker();
+    });
 
     document.getElementById('numpad-clear').addEventListener('click', () => {
       numpadValue = '';
