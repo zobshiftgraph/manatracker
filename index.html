@@ -30,7 +30,7 @@
       --radius: 14px;
       --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
       --touch: 48px;
-      --bottom-bar: 148px;
+      --bottom-bar: 188px;
       --life: #e05252;
     }
 
@@ -208,6 +208,69 @@
       font-size: 0.85rem;
       padding: 0.65rem 0.5rem;
       min-height: 44px;
+    }
+
+    .wake-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.65rem 0.85rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+      min-height: 44px;
+    }
+
+    .wake-row span {
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .wake-row input {
+      position: absolute;
+      opacity: 0;
+      width: 1px;
+      height: 1px;
+    }
+
+    .wake-switch {
+      width: 48px;
+      height: 28px;
+      background: var(--border);
+      border-radius: 999px;
+      position: relative;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+
+    .wake-switch::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 22px;
+      height: 22px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    }
+
+    .wake-row:has(input:checked) .wake-switch {
+      background: var(--upkeep);
+    }
+
+    .wake-row:has(input:checked) .wake-switch::after {
+      transform: translateX(20px);
+    }
+
+    .wake-row.setup {
+      margin-top: 1rem;
+      margin-bottom: 0;
     }
 
     .life-box {
@@ -517,6 +580,11 @@
             <span><strong>Colorless</strong> is always included.</span>
           </div>
           <div class="mana-pick-grid" id="setup-grid"></div>
+          <label class="wake-row setup">
+            <span>Keep screen on</span>
+            <input type="checkbox" data-wake-toggle>
+            <span class="wake-switch" aria-hidden="true"></span>
+          </label>
           <div class="btn-row">
             <button type="button" class="btn-primary" id="btn-start">Submit</button>
           </div>
@@ -540,6 +608,11 @@
 
   <div class="bottom-bar" id="bottom-bar">
     <div class="bottom-bar-inner">
+      <label class="wake-row">
+        <span>Keep screen on</span>
+        <input type="checkbox" data-wake-toggle>
+        <span class="wake-switch" aria-hidden="true"></span>
+      </label>
       <button type="button" class="btn-upkeep" id="btn-upkeep">Upkeep — restore spent mana</button>
       <div class="bottom-actions">
         <button type="button" class="btn-secondary" id="btn-settings">Change colors</button>
@@ -592,6 +665,7 @@
         counts: emptyCounts(),
         poolBaseline: emptyCounts(),
         life: 40,
+        keepAwake: false,
       };
     }
 
@@ -607,7 +681,8 @@
           : [];
         const enabledTypes = [...selectedColors, COLORLESS_ID];
         const life = typeof parsed.life === 'number' ? parsed.life : 40;
-        return { selectedColors, enabledTypes, counts, poolBaseline, life };
+        const keepAwake = !!parsed.keepAwake;
+        return { selectedColors, enabledTypes, counts, poolBaseline, life, keepAwake };
       } catch {
         return defaultState();
       }
@@ -629,6 +704,63 @@
     function renderSymbol(mana, el) {
       el.className = 'mana-icon lg ' + mana.className;
       el.innerHTML = `<use href="#mana-${mana.icon}"/>`;
+    }
+
+    let wakeLock = null;
+
+    function wakeLockSupported() {
+      return 'wakeLock' in navigator;
+    }
+
+    function updateWakeToggleUI() {
+      document.querySelectorAll('[data-wake-toggle]').forEach(el => {
+        el.checked = state.keepAwake;
+        el.disabled = !wakeLockSupported();
+      });
+      document.querySelectorAll('.wake-row span:first-child').forEach(el => {
+        if (el.classList.contains('wake-switch')) return;
+        if (!wakeLockSupported() && el.textContent === 'Keep screen on') {
+          el.textContent = 'Keep screen on (unsupported)';
+        }
+      });
+    }
+
+    async function releaseWakeLock() {
+      if (!wakeLock) return;
+      try {
+        await wakeLock.release();
+      } catch {}
+      wakeLock = null;
+    }
+
+    async function requestWakeLock() {
+      if (!wakeLockSupported()) return false;
+      try {
+        await releaseWakeLock();
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+        return true;
+      } catch {
+        wakeLock = null;
+        return false;
+      }
+    }
+
+    async function setKeepAwake(enabled) {
+      state.keepAwake = enabled;
+      saveState();
+      updateWakeToggleUI();
+
+      if (enabled) {
+        const ok = await requestWakeLock();
+        if (!ok) {
+          state.keepAwake = false;
+          saveState();
+          updateWakeToggleUI();
+        }
+      } else {
+        await releaseWakeLock();
+      }
     }
 
     function renderLife() {
@@ -931,8 +1063,20 @@
       if (e.target.id === 'numpad-overlay') closeNumpad();
     });
 
+    document.querySelectorAll('[data-wake-toggle]').forEach(input => {
+      input.addEventListener('change', () => setKeepAwake(input.checked));
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && state.keepAwake) {
+        requestWakeLock();
+      }
+    });
+
     buildNumpadKeys();
     renderSetup();
+    updateWakeToggleUI();
+    if (state.keepAwake) requestWakeLock();
     showScreen('setup');
   </script>
 </body>
