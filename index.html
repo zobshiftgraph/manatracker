@@ -30,7 +30,8 @@
       --radius: 14px;
       --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
       --touch: 48px;
-      --bottom-bar: 76px;
+      --bottom-bar: 148px;
+      --life: #e05252;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -192,51 +193,82 @@
       background: var(--upkeep);
       color: #fff;
       width: 100%;
-      min-height: var(--touch);
-      font-size: 1.05rem;
+      min-height: 44px;
+      font-size: 0.95rem;
+      margin-bottom: 0.5rem;
     }
 
-    .stats-bar {
+    .bottom-actions {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 0.65rem;
-      margin-bottom: 0.85rem;
+      gap: 0.5rem;
     }
 
-    .stat-box {
-      background: var(--surface2);
+    .bottom-actions button {
+      font-size: 0.85rem;
+      padding: 0.65rem 0.5rem;
+      min-height: 44px;
+    }
+
+    .life-box {
+      background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 0.85rem 1rem;
+      padding: 1rem 1.15rem;
+      margin-bottom: 0.85rem;
       text-align: center;
     }
 
-    .stat-box .label {
+    .life-box .life-label {
       display: block;
       color: var(--muted);
       font-size: 0.8rem;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-bottom: 0.2rem;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      margin-bottom: 0.65rem;
     }
 
-    .stat-box .value {
-      font-size: 1.85rem;
+    .life-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+
+    .life-btn {
+      width: var(--touch);
+      height: var(--touch);
+      padding: 0;
+      border-radius: 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 1.75rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .life-btn.minus { color: var(--danger); }
+    .life-btn.plus { color: var(--upkeep); }
+
+    .life-value {
+      min-width: 100px;
+      padding: 0.5rem 1rem;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      color: var(--life);
+      font-size: 2.75rem;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+      cursor: pointer;
     }
 
-    .stat-box.total .value { color: var(--text); }
-    .stat-box.spent .value { color: var(--spent); }
-
-    .toolbar {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
-      margin-bottom: 0.85rem;
-    }
-
-    .toolbar button { font-size: 0.9rem; padding: 0.7rem 0.5rem; }
+    .life-value:active { transform: scale(0.97); }
 
     .mana-groups {
       display: flex;
@@ -337,17 +369,21 @@
       transition: transform 0.2s ease;
     }
 
-    .mana-card.available:active { transform: scale(0.9); }
+    .mana-card.available:active,
+    .mana-card.tapped:active { transform: scale(0.9); }
 
     .mana-card.tapped {
-      cursor: default;
-      pointer-events: none;
+      cursor: pointer;
     }
 
     .mana-card.tapped .mana-icon {
       transform: rotate(90deg);
       opacity: 0.4;
       filter: grayscale(0.4) brightness(0.7) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    }
+
+    .mana-card.tapped .mana-icon.colorless {
+      transform: rotate(45deg);
     }
 
     .bottom-bar {
@@ -441,16 +477,22 @@
       gap: 0.5rem;
     }
 
-    .numpad-actions .btn-spend {
+    .numpad-header .mana-icon { display: none; }
+    .numpad-header.has-mana .mana-icon { display: block; }
+
+    .numpad-actions .btn-submit {
       grid-column: 1 / -1;
-      background: var(--danger);
       color: #fff;
       padding: 0.95rem;
       min-height: var(--touch);
       font-size: 1.05rem;
     }
 
-    .numpad-actions .btn-spend:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .numpad-actions .btn-submit.danger { background: var(--danger); }
+    .numpad-actions .btn-submit.upkeep { background: var(--upkeep); }
+    .numpad-actions .btn-submit.accent { background: var(--accent); }
+
+    .numpad-actions .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   </style>
 </head>
 <body>
@@ -482,20 +524,13 @@
       </section>
 
       <section id="screen-tracker" class="screen">
-        <div class="stats-bar">
-          <div class="stat-box total">
-            <span class="label">Total mana</span>
-            <span class="value" id="stat-total">0</span>
+        <div class="life-box">
+          <span class="life-label">Life</span>
+          <div class="life-controls">
+            <button type="button" class="life-btn minus" id="life-minus" aria-label="Lose life">−</button>
+            <button type="button" class="life-value" id="life-display" aria-label="Set life total">40</button>
+            <button type="button" class="life-btn plus" id="life-plus" aria-label="Gain life">+</button>
           </div>
-          <div class="stat-box spent">
-            <span class="label">Spent</span>
-            <span class="value" id="stat-spent">0</span>
-          </div>
-        </div>
-
-        <div class="toolbar">
-          <button type="button" class="btn-secondary" id="btn-settings">Change colors</button>
-          <button type="button" class="btn-danger" id="btn-reset">Clear all</button>
         </div>
 
         <div class="mana-groups" id="mana-groups"></div>
@@ -506,25 +541,26 @@
   <div class="bottom-bar" id="bottom-bar">
     <div class="bottom-bar-inner">
       <button type="button" class="btn-upkeep" id="btn-upkeep">Upkeep — restore spent mana</button>
+      <div class="bottom-actions">
+        <button type="button" class="btn-secondary" id="btn-settings">Change colors</button>
+        <button type="button" class="btn-danger" id="btn-reset">Clear all</button>
+      </div>
     </div>
   </div>
 
   <div class="overlay" id="numpad-overlay" aria-hidden="true">
     <div class="numpad-panel" role="dialog" aria-labelledby="numpad-title">
-      <div class="numpad-header">
+      <div class="numpad-header" id="numpad-header">
         <svg class="mana-icon lg" id="numpad-symbol" viewBox="0 0 32 32" aria-hidden="true"></svg>
-        <h3 id="numpad-title">Spend mana</h3>
+        <h3 id="numpad-title">Enter amount</h3>
       </div>
-      <p class="hint" style="margin-bottom: 0.75rem; color: var(--muted); font-size: 0.9rem;">
-        Enter amount to spend from <strong id="numpad-color-name"></strong>.
-        Available: <strong id="numpad-available"></strong>
-      </p>
+      <p class="hint" id="numpad-hint" style="margin-bottom: 0.75rem; color: var(--muted); font-size: 0.9rem;"></p>
       <div class="numpad-display empty" id="numpad-display">0</div>
       <div class="numpad-grid" id="numpad-grid"></div>
       <div class="numpad-actions">
         <button type="button" class="btn-secondary" id="numpad-clear">Clear</button>
         <button type="button" class="btn-secondary" id="numpad-cancel">Cancel</button>
-        <button type="button" class="btn-spend" id="numpad-spend" disabled>Spend</button>
+        <button type="button" class="btn-submit danger" id="numpad-submit" disabled>Submit</button>
       </div>
     </div>
   </div>
@@ -541,7 +577,7 @@
     const COLORLESS_MANA = { id: 'colorless', name: 'Colorless', icon: 'c', className: 'colorless' };
     const ALL_MANA = [...SELECTABLE_MANA, COLORLESS_MANA];
 
-    const STORAGE_KEY = 'mana-tracker-state-v2';
+    const STORAGE_KEY = 'mana-tracker-state-v3';
 
     let state = loadState();
 
@@ -555,12 +591,13 @@
         enabledTypes: [COLORLESS_ID],
         counts: emptyCounts(),
         poolBaseline: emptyCounts(),
+        life: 40,
       };
     }
 
     function loadState() {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('mana-tracker-state-v2');
         if (!raw) return defaultState();
         const parsed = JSON.parse(raw);
         const counts = { ...emptyCounts(), ...parsed.counts };
@@ -569,7 +606,8 @@
           ? parsed.selectedColors.filter(id => id !== COLORLESS_ID)
           : [];
         const enabledTypes = [...selectedColors, COLORLESS_ID];
-        return { selectedColors, enabledTypes, counts, poolBaseline };
+        const life = typeof parsed.life === 'number' ? parsed.life : 40;
+        return { selectedColors, enabledTypes, counts, poolBaseline, life };
       } catch {
         return defaultState();
       }
@@ -593,20 +631,14 @@
       el.innerHTML = `<use href="#mana-${mana.icon}"/>`;
     }
 
-    function totalPool() {
-      return state.enabledTypes.reduce((sum, id) => sum + (state.poolBaseline[id] || 0), 0);
+    function renderLife() {
+      document.getElementById('life-display').textContent = state.life;
     }
 
-    function totalSpent() {
-      return state.enabledTypes.reduce((sum, id) => {
-        const baseline = state.poolBaseline[id] || 0;
-        const current = state.counts[id] || 0;
-        return sum + (baseline - current);
-      }, 0);
-    }
-
-    function spentFor(id) {
-      return (state.poolBaseline[id] || 0) - (state.counts[id] || 0);
+    function adjustLife(delta) {
+      state.life += delta;
+      saveState();
+      renderLife();
     }
 
     function showScreen(name) {
@@ -647,15 +679,18 @@
         html += `<button type="button" class="mana-card ${mana.className} available" data-spend-id="${id}" aria-label="Spend 1 ${mana.name}">${symbolHtml(mana, 'on-card')}</button>`;
       }
       for (let i = 0; i < spent; i++) {
-        html += `<div class="mana-card ${mana.className} tapped" aria-hidden="true">${symbolHtml(mana, 'on-card')}</div>`;
+        html += `<button type="button" class="mana-card ${mana.className} tapped" data-restore-id="${id}" aria-label="Restore 1 ${mana.name}">${symbolHtml(mana, 'on-card')}</button>`;
       }
       html += '</div>';
       return html;
     }
 
+    function spentFor(id) {
+      return (state.poolBaseline[id] || 0) - (state.counts[id] || 0);
+    }
+
     function renderTracker() {
-      document.getElementById('stat-total').textContent = totalPool();
-      document.getElementById('stat-spent').textContent = totalSpent();
+      renderLife();
 
       const container = document.getElementById('mana-groups');
       container.innerHTML = '';
@@ -696,6 +731,17 @@
       return true;
     }
 
+    function restoreMana(id, amount) {
+      const baseline = state.poolBaseline[id] || 0;
+      const current = state.counts[id] || 0;
+      const room = baseline - current;
+      if (room <= 0) return false;
+      state.counts[id] = current + Math.min(amount, room);
+      saveState();
+      renderTracker();
+      return true;
+    }
+
     function adjustCount(id, delta) {
       const next = Math.max(0, (state.counts[id] || 0) + delta);
       const nextBaseline = Math.max(0, (state.poolBaseline[id] || 0) + delta);
@@ -723,17 +769,36 @@
       renderTracker();
     }
 
+    let numpadMode = null;
     let numpadManaId = null;
     let numpadValue = '';
 
-    function openNumpad(id) {
-      const mana = getMana(id);
-      numpadManaId = id;
+    function openNumpad(mode, manaId) {
+      numpadMode = mode;
+      numpadManaId = manaId || null;
       numpadValue = '';
-      renderSymbol(mana, document.getElementById('numpad-symbol'));
-      document.getElementById('numpad-title').textContent = 'Spend ' + mana.name;
-      document.getElementById('numpad-color-name').textContent = mana.name;
-      document.getElementById('numpad-available').textContent = state.counts[id] || 0;
+
+      const header = document.getElementById('numpad-header');
+      const submitBtn = document.getElementById('numpad-submit');
+      const hint = document.getElementById('numpad-hint');
+
+      header.classList.toggle('has-mana', mode === 'mana');
+      submitBtn.className = 'btn-submit';
+
+      if (mode === 'mana') {
+        const mana = getMana(manaId);
+        renderSymbol(mana, document.getElementById('numpad-symbol'));
+        document.getElementById('numpad-title').textContent = 'Spend ' + mana.name;
+        hint.innerHTML = 'Enter amount to spend. Available: <strong>' + (state.counts[manaId] || 0) + '</strong>';
+        submitBtn.textContent = 'Spend';
+        submitBtn.classList.add('danger');
+      } else if (mode === 'life-set') {
+        document.getElementById('numpad-title').textContent = 'Set life total';
+        hint.textContent = 'Current life: ' + state.life;
+        submitBtn.textContent = 'Set life';
+        submitBtn.classList.add('accent');
+      }
+
       updateNumpadDisplay();
       document.getElementById('numpad-overlay').classList.add('open');
       document.getElementById('numpad-overlay').setAttribute('aria-hidden', 'false');
@@ -742,6 +807,7 @@
     function closeNumpad() {
       document.getElementById('numpad-overlay').classList.remove('open');
       document.getElementById('numpad-overlay').setAttribute('aria-hidden', 'true');
+      numpadMode = null;
       numpadManaId = null;
       numpadValue = '';
     }
@@ -751,97 +817,29 @@
       const num = numpadValue === '' ? 0 : parseInt(numpadValue, 10);
       el.textContent = numpadValue === '' ? '0' : numpadValue;
       el.classList.toggle('empty', numpadValue === '');
-      document.getElementById('numpad-spend').disabled = !numpadValue || num <= 0;
+
+      const submitBtn = document.getElementById('numpad-submit');
+      if (numpadMode === 'life-set') {
+        submitBtn.disabled = numpadValue === '';
+      } else {
+        submitBtn.disabled = !numpadValue || num <= 0;
+      }
     }
 
     function appendNumpadDigit(d) {
-      if (numpadValue.length >= 3) return;
-      if (numpadValue === '0') numpadValue = d;
+      const maxLen = numpadMode && numpadMode.startsWith('life') ? 4 : 3;
+      if (numpadValue.length >= maxLen) return;
+      if (numpadValue === '0' && d !== '0') numpadValue = d;
+      else if (numpadValue === '0' && d === '0') return;
       else numpadValue += d;
       updateNumpadDisplay();
     }
 
-    function confirmSpend() {
+    function confirmNumpad() {
       const amount = parseInt(numpadValue, 10);
-      if (!numpadManaId || !amount || amount <= 0) return;
-      if (spendMana(numpadManaId, amount)) closeNumpad();
-    }
-
-    function buildNumpadKeys() {
-      const grid = document.getElementById('numpad-grid');
-      grid.innerHTML = '';
-      ['1','2','3','4','5','6','7','8','9','','0','⌫'].forEach(key => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'numpad-key';
-        if (key === '') {
-          btn.disabled = true;
-          btn.style.visibility = 'hidden';
-        } else if (key === '⌫') {
-          btn.textContent = '⌫';
-          btn.addEventListener('click', () => {
-            numpadValue = numpadValue.slice(0, -1);
-            updateNumpadDisplay();
-          });
-        } else {
-          btn.textContent = key;
-          btn.addEventListener('click', () => appendNumpadDigit(key));
-        }
-        grid.appendChild(btn);
-      });
-    }
-
-    document.getElementById('btn-start').addEventListener('click', () => {
-      const checked = [...document.querySelectorAll('#setup-grid input:checked')].map(i => i.value);
-      state.selectedColors = checked;
-      state.enabledTypes = [...checked, COLORLESS_ID];
-      saveState();
-      renderTracker();
-      showScreen('tracker');
-    });
-
-    document.getElementById('btn-settings').addEventListener('click', () => {
-      renderSetup();
-      showScreen('setup');
-    });
-
-    document.getElementById('btn-reset').addEventListener('click', resetAll);
-    document.getElementById('btn-upkeep').addEventListener('click', doUpkeep);
-
-    document.getElementById('mana-groups').addEventListener('click', e => {
-      const spendCard = e.target.closest('[data-spend-id]');
-      if (spendCard) {
-        spendMana(spendCard.dataset.spendId, 1);
-        return;
-      }
-
-      const numpadBtn = e.target.closest('[data-numpad-id]');
-      if (numpadBtn) {
-        openNumpad(numpadBtn.dataset.numpadId);
-        return;
-      }
-
-      const countBtn = e.target.closest('[data-action]');
-      if (countBtn) {
-        adjustCount(countBtn.dataset.id, countBtn.dataset.action === 'plus' ? 1 : -1);
-      }
-    });
-
-    document.getElementById('numpad-clear').addEventListener('click', () => {
-      numpadValue = '';
-      updateNumpadDisplay();
-    });
-
-    document.getElementById('numpad-cancel').addEventListener('click', closeNumpad);
-    document.getElementById('numpad-spend').addEventListener('click', confirmSpend);
-
-    document.getElementById('numpad-overlay').addEventListener('click', e => {
-      if (e.target.id === 'numpad-overlay') closeNumpad();
-    });
-
-    buildNumpadKeys();
-    renderSetup();
-    showScreen('setup');
-  </script>
-</body>
-</html>
+      if (numpadMode === 'mana') {
+        if (!numpadManaId || !amount || amount <= 0) return;
+        if (spendMana(numpadManaId, amount)) closeNumpad();
+      } else if (numpadMode === 'life-set') {
+        if (numpadValue === '' || isNaN(amount)) return;
+        state.life = amount;
